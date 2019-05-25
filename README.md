@@ -5,7 +5,7 @@ Google’s [Closure Library](https://github.com/google/closure-library) compiled
 
 ```sh
 # Compile
-node .
+yarn compile
 ```
 
 ```js
