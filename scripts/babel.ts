@@ -39,18 +39,22 @@ export function findFirstArgs<T extends t.Node, R>(p: {
   return values;
 }
 
-export function assignExport(provides: string[], filename: string) {
+export function assignExport(content: string, provides: string[], filename: string): [string, string] {
+  // goog.module cannot have more than one provide
   if (provides.length === 1) {
-    return `export default ${provides[0]}`;
+    const isModule = /goog\.module\(["']/.test(content)
+    const prefix = isModule ? `var exports = {};` : "";
+    const suffix = isModule ? `${provides[0]} = exports;\nexport default exports` : `export default ${provides[0]}`;
+    return [prefix, suffix];
   }
 
   const candidate = provides.find(f =>
     _.last(f.split("."))!.toLowerCase() === dropExt(filename).toLowerCase()
   )
   if (candidate) {
-    return `export default ${candidate}`;
+    return ["", `export default ${candidate}`];
   } else {
     // console.warn(`Impossible de trouver \`export default\` pour ${filename}`);
-    return "";
+    return ["", ""];
   }
 }

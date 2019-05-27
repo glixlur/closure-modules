@@ -199,8 +199,7 @@ goog.exportPath_ = function(name, opt_object, opt_objectToExportTo) {
  * @template T
  */
 goog.define = function(name, defaultValue) {
-  var value = defaultValue;
-  return value;
+  return defaultValue;
 };
 
 
@@ -303,9 +302,6 @@ goog.ENABLE_CHROME_APP_SAFE_SCRIPT_LOADING = false;
  *     "goog.package.part".
  */
 goog.provide = function(name) {
-  if (goog.isInModuleLoader_()) {
-    throw new Error('goog.provide cannot be used within a module.');
-  }
   goog.constructNamespace_(name);
 };
 
@@ -375,21 +371,7 @@ goog.module = function(name) {
       name.search(goog.VALID_MODULE_RE_) == -1) {
     throw new Error('Invalid module identifier');
   }
-  if (!goog.isInGoogModuleLoader_()) {
-    throw new Error(
-        'Module ' + name + ' has been loaded incorrectly. Note, ' +
-        'modules cannot be loaded as normal scripts. They require some kind of ' +
-        'pre-processing step. You\'re likely trying to load a module via a ' +
-        'script tag or as a part of a concatenated bundle without rewriting the ' +
-        'module. For more info see: ' +
-        'https://github.com/google/closure-library/wiki/goog.module:-an-ES6-module-like-alternative-to-goog.provide.');
-  }
-  if (goog.moduleLoaderState_.moduleName) {
-    throw new Error('goog.module may only be called once per module.');
-  }
-
-  // Store the module name for the loader.
-  goog.moduleLoaderState_.moduleName = name;
+  goog.provide(name);
 };
 
 
@@ -427,53 +409,6 @@ goog.ModuleType = {
   GOOG: 'goog'
 };
 
-
-/**
- * @private {?{
- *   moduleName: (string|undefined),
- *   declareLegacyNamespace:boolean,
- *   type: ?goog.ModuleType
- * }}
- */
-goog.moduleLoaderState_ = null;
-
-
-/**
- * @private
- * @return {boolean} Whether a goog.module or an es6 module is currently being
- *     initialized.
- */
-goog.isInModuleLoader_ = function() {
-  return goog.isInGoogModuleLoader_() || goog.isInEs6ModuleLoader_();
-};
-
-
-/**
- * @private
- * @return {boolean} Whether a goog.module is currently being initialized.
- */
-goog.isInGoogModuleLoader_ = function() {
-  return !!goog.moduleLoaderState_ &&
-      goog.moduleLoaderState_.type == goog.ModuleType.GOOG;
-};
-
-
-/**
- * @private
- * @return {boolean} Whether an es6 module is currently being initialized.
- */
-goog.isInEs6ModuleLoader_ = function() {
-  var inLoader = !!goog.moduleLoaderState_ &&
-      goog.moduleLoaderState_.type == goog.ModuleType.ES6;
-
-  if (inLoader) {
-    return true;
-  }
-
-  return false;
-};
-
-
 /**
  * Provide the module's exports as a globally accessible object under the
  * module's declared name.  This is intended to ease migration to goog.module
@@ -481,42 +416,7 @@ goog.isInEs6ModuleLoader_ = function() {
  * @suppress {missingProvide}
  */
 goog.module.declareLegacyNamespace = function() {
-  goog.moduleLoaderState_.declareLegacyNamespace = true;
 };
-
-
-/**
- * Associates an ES6 module with a Closure module ID so that is available via
- * goog.require. The associated ID  acts like a goog.module ID - it does not
- * create any global names, it is merely available via goog.require /
- * goog.module.get / goog.forwardDeclare / goog.requireType. goog.require and
- * goog.module.get will return the entire module as if it was import *'d. This
- * allows Closure files to reference ES6 modules for the sake of migration.
- *
- * @param {string} namespace
- * @suppress {missingProvide}
- */
-goog.declareModuleId = function(namespace) {
-  if (goog.moduleLoaderState_) {
-    // Not bundled - debug loading.
-    goog.moduleLoaderState_.moduleName = namespace;
-  } else {
-    // Bundled - not debug loading, no module loader state.
-    var jscomp = goog.global['$jscomp'];
-    if (!jscomp || typeof jscomp.getCurrentModulePath != 'function') {
-      throw new Error(
-          'Module with namespace "' + namespace +
-          '" has been loaded incorrectly.');
-    }
-    var exports = jscomp.require(jscomp.getCurrentModulePath());
-    goog.loadedModules_[namespace] = {
-      exports: exports,
-      type: goog.ModuleType.ES6,
-      moduleId: namespace
-    };
-  }
-};
-
 
 /**
  * Marks that the current file should only be used for testing, and never for
@@ -1738,9 +1638,6 @@ goog.base = function(me, opt_methodName, var_args) {
  *     (e.g. "var Timer = goog.Timer").
  */
 goog.scope = function(fn) {
-  if (goog.isInModuleLoader_()) {
-    throw new Error('goog.scope is not supported within a module.');
-  }
   fn.call(goog.global);
 };
 
@@ -1999,3 +1896,5 @@ goog.createTrustedTypesPolicy = function(name) {
 goog.TRUSTED_TYPES_POLICY_ = goog.TRUSTED_TYPES_POLICY_NAME ?
     goog.createTrustedTypesPolicy(goog.TRUSTED_TYPES_POLICY_NAME + '#base') :
     null;
+
+export { goog }

@@ -48,8 +48,7 @@ export async function main(args: string[]) {
   let project = await loadProject(src + "/**/*.js")
 
   project = _.omitBy(project, (_, filename) =>
-    basename(filename) === "base.js" ||
-    basename(filename) === "goog.js"
+    ["base.js", "goog.js"].includes(basename(filename))
   )
 
   log(`Building AST trees.`)
@@ -59,14 +58,12 @@ export async function main(args: string[]) {
       matchCallExpression(ast, 'goog.provide').concat(
       matchCallExpression(ast, 'goog.module')
     )
-    const appendum = assignExport(provides, filename);
+    const appendum = assignExport(content, provides, filename)
     return {
       filename,
-      content: content + '\n' + appendum,
+      content: appendum.join('\n' + content + '\n'),
       provides,
-      requires: (
-        matchCallExpression(ast, 'goog.require') || []
-      ),
+      requires: matchCallExpression(ast, 'goog.require'),
     }
   })
   
