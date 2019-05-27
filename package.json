@@ -1,11 +1,12 @@
 {
   "name": "closure-modules",
-  "version": "1.0.0",
+  "version": "20190513.0.0",
   "main": "lib/goog/base.js",
   "author": "glixlur <itaieps@fastmail.fm>",
   "license": "MIT",
   "scripts": {
-    "compile": "node index.js"
+    "compile": "node index.js",
+    "prepublish": "npm run compile"
   },
   "devDependencies": {
     "@babel/core": "^7.4.5",
@@ -17,8 +18,12 @@
     "babel-preset-minify": "^0.5.0",
     "fs-extra": "^8.0.1",
     "glob": "^7.1.4",
-    "glob-promise": "^3.4.0",
+    "glob-promise": "3.4.0",
+    "google-closure-library": "^20190513.0.0",
     "lodash": "^4.17.11",
+    "rollup": "^1.12.3",
+    "rollup-plugin-babel": "^4.3.2",
+    "rollup-plugin-node-resolve": "^5.0.0",
     "ts-node": "^8.1.1",
     "typescript": "^3.4.5"
   }

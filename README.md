@@ -9,8 +9,6 @@ yarn compile
 ```
 
 ```js
-import { goog } from "closure-modules";
-import "closure-modules/lib/goog/math/rect";
-
-export default new goog.math.Rect(NaN, NaN, NaN, NaN);
+import Rect from "closure-modules/lib/goog/math/rect";
+new Rect(NaN, NaN, NaN, NaN);
 ```

@@ -2,8 +2,8 @@ import * as fs from "fs-extra"
 import _ from "lodash"
 import glob from "glob-promise"
 import { parse } from "@babel/parser"
-import * as t from "@babel/types"
-import { findFirstArgs } from "./babel"
+import { asyncFlatMap } from "./util"
+import { matchCallExpression, assignExport } from "./babel"
 import { resolve, relative, dirname, basename } from "path"
 
 const DUMMY_FILE = '\0empty'
@@ -15,13 +15,7 @@ interface File {
   requires: string[]
 }
 
-/**
- * @example
- * asyncFlatMap :: (a -> Promise (Either b List b)) -> List a -> Promise List b
- */
-function asyncFlatMap<T, R>(fn: (value: T) => Promise<R[] | R>, list: T[]) {
-  return Promise.all(list.map(fn)).then(arr => arr.flat() as R[])
-}
+const { log } = console
 
 /**
  * Returns a Dict of file name → file contents.
@@ -33,19 +27,11 @@ async function loadProject(...pattern: string[]) {
 }
 
 /**
- * Returns the first StringLiteral in all functions calls to `memberList`.
- * @example goog.require("module") → 'google.require' → ["module"]
- */
-function matchCallExpression(ast: t.File, memberList: string) {
-  return findFirstArgs({ ast, memberList, filter: t.isStringLiteral, map: t => t.value })
-}
-
-/**
  * Parse a JavaScript file to AST and provide useful error messages if failed.
  */
 function toAST(content: string, filename: string) {
   try {
-    return parse(content, { sourceType: /export /.test(content) ? "module" : "script" })
+    return parse(content)
   } catch (e) {
     e.filename = filename
     throw e
@@ -53,29 +39,38 @@ function toAST(content: string, filename: string) {
 }
 
 export async function main(args: string[]) {
-  const src = resolve(__dirname, "../closure-library/closure/goog")
+  const src = resolve(__dirname, "../node_modules/google-closure-library/closure/goog")
   const dest = resolve(__dirname, "../lib/goog")
 
-  const project = await loadProject(src + "/**/*.js")
+  await fs.remove(dest)
 
+  log(`Loading project at "${src}".`)
+  let project = await loadProject(src + "/**/*.js")
+
+  project = _.omitBy(project, (_, filename) =>
+    basename(filename) === "base.js" ||
+    basename(filename) === "goog.js"
+  )
+
+  log(`Building AST trees.`)
   let files = _.map(project, (content, filename): File => {
     const ast = toAST(content, filename)
+    const provides = 
+      matchCallExpression(ast, 'goog.provide').concat(
+      matchCallExpression(ast, 'goog.module')
+    )
+    const appendum = assignExport(provides, filename);
     return {
       filename,
-      content,
-      provides: (
-        matchCallExpression(ast, 'goog.provide') ||
-        matchCallExpression(ast, 'goog.module') || []
-      ),
+      content: content + '\n' + appendum,
+      provides,
       requires: (
         matchCallExpression(ast, 'goog.require') || []
       ),
     }
   })
   
-  files = _.filter(files, _.negate(({ filename, requires, provides }) =>
-    basename(filename) === "base.js" ||
-    basename(filename) === "goog.js" ||
+  files = _.filter(files, _.negate(({ requires, provides }) =>
     requires.some(item => item.includes("..")) ||
     provides.some(item => item.includes(".."))
   ))
@@ -89,13 +84,14 @@ export async function main(args: string[]) {
     requires: [],
   }, {
     filename: baseJs,
-    content: await fs.readFile(baseJs, 'utf8'),
+    content: await fs.readFile(resolve(__dirname, 'base.js'), 'utf8'),
     provides: [baseJs],
     requires: [],
   })
 
   files = _.filter(files, ({ provides }) => provides.length > 0)
 
+  log(`Building files.`)
   for (const f of files) {
     if (f.filename === DUMMY_FILE) continue
 
@@ -117,13 +113,14 @@ export async function main(args: string[]) {
      .value()
 
     const importStatements = require.map(f => `import ${JSON.stringify(f)}`)
-    // First one is always base.js file
-    importStatements[0] = `import { goog } from ${JSON.stringify(require[0])}`
+    if (f.filename !== baseJs) {
+      importStatements[0] = `import { goog } from ${JSON.stringify(require[0])}`
+    }
 
     await fs.ensureDir(dirname(path))
     await fs.writeFile(path,
-      importStatements.join('\n') + '\n\n' + f.content +
-      (f.filename === baseJs ? "\nexport { goog } " : "")
+      importStatements.join('\n') + '\n\n' + f.content
+      // + (f.filename === baseJs ? "\nexport { goog } " : "")
     )
   }
 }
